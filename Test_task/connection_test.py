@@ -1,6 +1,9 @@
 # -*- coding: utf-8 -*-
 from jira.client import JIRA
+import requests
 from datetime import datetime, timedelta
+from proto.staff_public_api_pb2 import DESCRIPTOR as desc_staff_public_api
+from grpc_requests import StubClient
 
 # ------------- count weekday, weeknumber, rangeday MONDAY TO MONDAY ------------------ #
 
@@ -23,36 +26,18 @@ if weekday != 8:
     today += timedelta(days=1)
     print(f"сегодня НЕ понедельник, поэтому выносим правую границу запроса в будущее = {today}")
 
-# ------------- count weekday, weeknumber, rangeday FOR FRIDAY TO FRIDAY ------------------ #
-# посчитаем нужный нам range_day (отсчитываемый от пятницы к пятнице)
-# СБ = -1д, ПТ = -7д (с учетом того, что крона работает в 00:05 самом начале дня)
-# двигаем на три часа, так как на проде UTC
-today_shift = (datetime.today() + timedelta(hours=3))
 
-weekday_shift = today_shift.isoweekday()
-weekday_shift = weekday_shift + (-5 if weekday_shift > 5 else +2)
-range_day_shift = (today_shift - timedelta(days=weekday_shift)).strftime("%Y-%m-%d")
+#Токен жира обязательно в кавычках
+secrets = {"jira_token":"Твой Jira токен",
+		   "vertica_user": "доменный логин(без @ozon.ru)",
+		   "vertica_password": "доменный пароль",
+           "s2s-client-secret": "Обратись к Сане"
+           }
 
-print(range_day_shift, " дата стартовой пятницы")
-# нужно получить формат номера недели такой "YY_mm"
-week_number_shift = (today_shift + timedelta(days=2)).isocalendar()[1]
-week_number_shift = f'{(today_shift + timedelta(days=2)).isocalendar()[0]}_{("0" + str(week_number_shift)) if week_number_shift < 10 else week_number_shift}'
-week_number_shift = week_number_shift[-5:]
-
-# сделаем так, чтобы во все дни недели (КРОМЕ ПЯТНИЦЫ) данные брались на текущий момент по сегодняшний день изменени тоже.
-if weekday != 7:
-    today_shift += timedelta(days=1)
-    print(f"сегодня НЕ пятница, поэтому выносим правую границу запроса в будущее = {today_shift}")
-
-
-#Логин и пароль жира обязательно в кавычках
-secrets = {"jira_token":"Твой Jira токен"}
-
-# -------------------------------------------------------------------
+#Подключение к Jira
 
 default_headers = JIRA.DEFAULT_OPTIONS["headers"].copy()
 default_headers["UserAgent"] = "python_cronjobs_911cc"
-
 jira_headers = {**default_headers}
 jira_headers["Authorization"] = f"Bearer {secrets['jira_token']}"
 jira_options = {
@@ -61,5 +46,73 @@ jira_options = {
 jira = JIRA(server="https://jira.o3.ru/", options=jira_options)
 
 
-# ------------------------------------------------------------------------------ #
+#Подключение к Вертике
 
+conn_vertica_info = {
+    'host': 'vertica-sandbox.s.o3.ru',
+    'port': 5433, 'database': 'OLAP',
+    'user': secrets['vertica_user'],
+    'password':  secrets['vertica_password'],
+    'read_timeout': 10,
+    'unicode_error': 'strict',
+    'ssl': False,
+    'use_prepared_statements': False,
+    # 'connection_timeout': 10
+}
+
+#Подключение к Staff для получения списка сотрудников
+def get_auth_token(target_service):
+	SERVICE_NAME = "s2s|cronjobs"
+	AUTH_HOST = "https://sso.o3.ru/auth/realms/service2service/protocol/openid-connect/token"
+
+
+	dataStr = 'grant_type=client_credentials&client_id=' + SERVICE_NAME + '&client_secret=' + secrets['s2s-client-secret'] + '&scope=' + target_service
+	response = requests.post(AUTH_HOST, data=dataStr, headers={'Content-Type': 'application/x-www-form-urlencoded'})
+	if response.status_code == 200:
+		jsonAuthResponse = response.json()
+		return str(jsonAuthResponse['token_type'] + ' ' + jsonAuthResponse['access_token'])
+	return "Error Keycloak: " + str(response.status_code) + " | " + str(response.text)
+
+def new_staff_public_api_client():
+	service_descriptor = desc_staff_public_api.services_by_name['StaffPublicAPI']
+
+	client = StubClient.get_by_endpoint(f"staff-public-api.kdp.svc.prod.k8s.o3.ru:82", service_descriptors=[service_descriptor, ])
+
+	staff_public_api_client = client.service("ozon.kdp.api.staff_public_api.api.staff_public_api.v1.StaffPublicAPI")
+
+	staff_api_token = get_auth_token("s2s|staff-public-api")
+
+	metadata = (('x-o3-app-name', 'cronjobs'), ('x-o3-s2s', staff_api_token))
+
+	return staff_public_api_client, metadata
+
+staff_public_client, metadata = new_staff_public_api_client()
+
+guid_dict = {
+	"911_CC" : "23324236-a31a-11ea-90f9-9418826ee072"
+}
+
+teams_911 = {}
+for team, guid in guid_dict.items():
+	teams_911[team] = []
+	# URL = f"http://staff-public-api.prod.a.o3.ru:80/employees/org?guids={guid}"
+	payload = {
+		"guids": [guid],
+	}
+
+	response = staff_public_client.GetEmployeesByOrgGuids(payload, metadata=metadata)
+	employees = response['orgEmployees'][0]['employees']
+
+	# response = requests.get(URL, headers=headers_staff)
+	# if response.status_code != 200:
+		# print(response, f"problems with {URL}")
+	# res = response['orgEmployees'][0]['employees']
+	# print(json.dumps(res, sort_keys=True, indent=4))
+	# print(len(res), "сотрудников ", team)
+
+	for item in employees:
+		teams_911[team].append(item['person']['login'])
+		# print(item['person']['login'])
+print("911_CC: ", teams_911['911_CC'])
+
+# ------------------------------------------------------------------------------ #
