@@ -12,4 +12,3 @@ grpc-requests==0.1.8
 grpcio==1.51.3
 
 etcd3
-
