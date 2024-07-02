@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+from typing import Union, Any
+
 from jira.client import JIRA
 import requests
 from datetime import datetime, timedelta
@@ -32,7 +34,7 @@ if weekday != 8:
 secrets = {"jira_token":"Твой Jira токен",
 		   "vertica_user": "доменный логин(без @ozon.ru)",
 		   "vertica_password": "доменный пароль",
-           "s2s-client-secret": "Обратись к Сане"
+           "s2s-client-secret": "обратись к Сане"
            }
 
 #Подключение к Jira
@@ -44,7 +46,7 @@ jira_headers["Authorization"] = f"Bearer {secrets['jira_token']}"
 jira_options = {
 	"headers": jira_headers
 }
-
+jira = JIRA(server="https://jira.o3.ru/", options=jira_options)
 
 #Подключение к Вертике
 
