@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 from proto.staff_public_api_pb2 import DESCRIPTOR as desc_staff_public_api
 from grpc_requests import StubClient
 
+
 # ------------- count weekday, weeknumber, rangeday MONDAY TO MONDAY ------------------ #
 
 today = (datetime.today() + timedelta(hours=3))
@@ -43,7 +44,6 @@ jira_headers["Authorization"] = f"Bearer {secrets['jira_token']}"
 jira_options = {
 	"headers": jira_headers
 }
-jira = JIRA(server="https://jira.o3.ru/", options=jira_options)
 
 
 #Подключение к Вертике

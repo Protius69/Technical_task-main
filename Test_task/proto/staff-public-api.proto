@@ -1,0 +1,173 @@
+syntax = "proto3";
+
+package ozon.kdp.api.staff_public_api.api.staff_public_api.v1;
+
+option go_package = "gitlab.ozon.ru/kdp/api/staff-public-api/pkg/api/staff_public_api/v1;staff_public_api";
+
+import "google/api/annotations.proto";
+// import "google/splunk_logger/audit.proto";
+
+service StaffPublicAPI {
+	// Получение профилей сотрудников в группе по guid'ам оргов,
+// mainOnly - сотрудники только по основной должности
+// recursive - все сотрудники рекурсивно вниз по группам
+// companyPrefix - сотрудники из определенной компании
+	rpc GetEmployeesByOrgGuids(GetEmployeesByOrgGuidsRequest) returns (GetEmployeesByOrgGuidsResponse) {
+		option (google.api.http) = {
+		get: "/employees/org"
+		};
+		// option(ozon.kdp.tools.splunk_logger.audit.method) = true;
+		// option(ozon.kdp.tools.splunk_logger.audit.description) = "try to get employees profiles by org guids";
+	}
+
+	// Получение количества сотрудников в группе по guid'ам оргов
+	rpc GetEmployeesAmountByOrgGuids(GetEmployeesAmountByOrgGuidsRequest) returns (GetEmployeesAmountByOrgGuidsResponse) {
+		option (google.api.http) = {
+		  get: "/org/employees/amount"
+		};
+		// option(ozon.kdp.tools.splunk_logger.audit.method) = true;
+		// option(ozon.kdp.tools.splunk_logger.audit.description) = "try to get employees amount by org guids";
+	}
+
+	// Получение вертикали руководителей сотрудника
+	rpc GetHeadsVerticalByLogin(GetHeadsVerticalByLoginRequest) returns (GetHeadsVerticalByLoginResponse) {
+		option (google.api.http) = {
+		  get: "/profiles/heads/{login}/vertical"
+		};
+		// option(ozon.kdp.tools.splunk_logger.audit.method) = true;
+		// option(ozon.kdp.tools.splunk_logger.audit.description) = "try to get heads vertical by person login";
+	}
+	
+}
+
+message GetEmployeesByOrgGuidsRequest {
+	repeated string guids = 1;
+	bool            recursive = 2;
+	bool            mainOnly = 3;
+	string          companyPrefix = 4;
+}
+
+message GetEmployeesByOrgGuidsResponse {
+	message OrgEmployees {
+	  string orgGuid = 1;
+	  repeated StaffProfile employees = 2;
+	}
+	repeated OrgEmployees orgEmployees = 1;
+}
+
+message GetEmployeesAmountByOrgGuidsRequest {
+	repeated string guids = 1;
+}
+
+message GetEmployeesAmountByOrgGuidsResponse {
+	message OrgEmployeesAmount {
+	  OrgStructure org = 1;
+	  int32 employeesAmount = 2;
+	}
+	repeated OrgEmployeesAmount orgEmployees = 1;
+}
+
+message GetHeadsVerticalByLoginRequest {
+	string login = 1;
+ }
+ 
+ message GetHeadsVerticalByLoginResponse {
+   repeated ShortProfile heads = 1;
+ }
+ 
+
+message OrgStructure {
+	string guid = 1;
+	string title = 2;
+}
+
+message StaffProfile {
+	Person person = 1;
+	repeated Employee employees = 2;
+}
+
+message Employee {
+	int64 personId = 1;
+	string guid = 2;
+	Position position = 3;
+	OrgStructure org = 4;
+	City city = 5;
+	Company company = 6;
+	Street street = 7;
+	Subdivision subdivision = 8;
+	Person head = 9;
+	Person hrBp = 10;
+	bool isMain = 11;
+	bool isHead = 12;
+	string employeeNumber = 13;
+	CostCenter costCenter = 14;
+	EmployeeStatus status = 15;
+	float workTimeRate = 16;
+	string personGuid = 17;
+}
+
+message Company {
+	string title = 1;
+	string prefix = 2;
+}
+
+message City {
+	string title = 1;
+	string guid = 2;
+}
+
+message Street {
+	string title = 1;
+	string guid = 2;
+}
+
+message Subdivision {
+	string title = 1;
+	string guid = 2;
+}
+
+message CostCenter {
+	string title = 1;
+	string guid = 2;
+}
+
+message Position {
+	string guid = 1;
+	string title = 2;
+}
+
+message EmployeeStatus {
+	int32 id = 1;
+	string title = 2;
+}
+
+message Person {
+	int64 id = 1;
+	string personGuid = 2;
+	string login = 3;
+	string photoUrl = 4;
+	string fullName = 5;
+	Contacts contacts = 6;
+	string name = 7;
+	string surname = 8;
+	string patronymic = 9;
+	string birthday = 10;
+	bool   isRemote = 11;
+}
+
+message Contacts {
+	string email = 1;
+	string phone = 2;
+	string slack = 3;
+	string teams = 4;
+	string telegram = 5;
+	string onecPhone = 6;
+	string workPhone = 7;
+}
+
+message ShortProfile {
+	Person person = 1;
+	Position position = 2;
+	OrgStructure org = 3;
+	Company company = 4;
+}
